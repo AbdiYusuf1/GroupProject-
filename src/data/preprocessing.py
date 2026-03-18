@@ -1,53 +1,10 @@
-'''
-import pandas as pd
-
-def load_german_credit(path = "raw_data/german.data"):
-    #german dataset is whitespaced separated, not comma serparated
-    df = pd.read_csv(path, sep = r"\s+", header = None)
-
-    #Last column is target
-    column_names = [
-        "checking_account_status",
-        "duration_months",
-        "credit_history",
-        "purpose",
-        "credit_amount",
-        "savings_account",
-        "employment_since",
-        "installment_rate",
-        "personal_status_sex",
-        "other_debtors",
-        "residence_since",
-        "property",
-        "age",
-        "other_installment_plans",
-        "housing",
-        "existing_credits",
-        "job",
-        "dependents",
-        "telephone",
-        "foreign_worker",
-        "target"
-    ]
-
-    df.columns = column_names
-
-    return df
-
-if __name__ == "__main__":
-    df = load_german_credit()
-    print("Shape:", df.shape)
-    print(df.head())
-    print(df["target"].value_counts())
-    '''
+from __future__ import annotations
 import pandas as pd                         #reads dataset to data frame
 from dataclasses import dataclass           #makes a container object to return multiple outputs cleanly
 from typing import List, Tuple              #type hints for readability
 import os                                   #creates folders and builds paths
 import json                                 #save feature to .json file
 import joblib                               #saves fitted sklearn pattern
-
-from __future__ import annotations
 
 #sklearn imports: tools to split data and build preprocessing pipelines
 from sklearn.compose import ColumnTransformer
@@ -104,7 +61,7 @@ class PreparedData:
     feature_names: List[str]                #names of processed collumns. needed for reporting
     preprocessor: ColumnTransformer         #fitted sklearn transformer
 
-def load_german_credit(path: str = "raw_data/german.data") -> pd.DataFrame:
+def load_german_credit(path: str = r"C:\Users\isaac\GroupProject-\raw_data\german.data") -> pd.DataFrame:
     '''
     Load German Credit data from whitespace separated file with no headers.
     Target: 1 = Good, 2 = Bad (convert to 0/1 later)
@@ -166,7 +123,7 @@ def build_preprocessor(df: pd.DataFrame) -> Tuple[ColumnTransformer, List[str], 
     #outputs a fitted transformer that can convert raw dataframes into matrices
 
 def prepare_data(
-        path: str = "raw_data/german.data",
+        path: str = r"C:\Users\isaac\GroupProject-\raw_data\german.data",
         test_size: float = 0.02,
         random_state: int = 42,
         save_artifacts: bool = True,
@@ -225,8 +182,8 @@ def prepare_data(
 
 if __name__ == "__main__":
     prepared = prepare_data(save_artifacts=True)
-    print("Train shape:", getattr(prepared.X_train_p, "shape", None))
-    print("Test shape: ", getattr(prepared.X_test_p, "shape", None))
+    print("Train shape:", getattr(prepared.x_train_p, "shape", None))
+    print("Test shape: ", getattr(prepared.x_test_p, "shape", None))
     print("Train bad rate:", float(prepared.y_train.mean()))
     print("Test bad rate: ", float(prepared.y_test.mean()))
     print("Num features after encoding:", len(prepared.feature_names))
