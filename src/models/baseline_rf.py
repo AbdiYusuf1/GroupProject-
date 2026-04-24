@@ -1,6 +1,6 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix, classification_report
-from src.data.preprocessing import prepare_data
+from src.data.preprocessing_revised import prepare_data
 
 print("Loading data...")
 prepared = prepare_data()

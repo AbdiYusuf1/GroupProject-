@@ -1,6 +1,6 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix, classification_report
-
+from src.data.preprocessing_revised import prepare_data
 # Load prepared data using  function
 
 prepared = prepare_data(save_artifacts=True)

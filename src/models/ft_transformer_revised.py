@@ -11,14 +11,14 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
-
+#from src.data.preprocessing_revised import prepare_data
 # Allow this file to run either as part of the src package or directly.
 PROJECT_ROOT = Path(__file__).resolve().parents[2] if len(Path(__file__).resolve().parents) >= 3 else Path.cwd()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 try:
-    from src.data.preprocessing import prepare_data
+    from src.data.preprocessing_revised import prepare_data
 except ModuleNotFoundError:
     from preprocessing_revised import prepare_data  # local fallback for standalone testing
 
