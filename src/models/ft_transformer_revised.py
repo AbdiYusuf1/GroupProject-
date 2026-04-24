@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, confusion_matrix, classification_report
 from torch.utils.data import DataLoader, TensorDataset
 
 # Allow this file to run either as part of the src package or directly.
@@ -17,12 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2] if len(Path(__file__).resolve
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-try:
-    from src.data.preprocessing import prepare_data
-except ModuleNotFoundError:
-    from preprocessing_revised import prepare_data  # local fallback for standalone testing
+from src.data.preprocessing_revised import prepare_data
 
-
+'''
+first try
 @dataclass
 class TrainConfig:
     batch_size: int = 64
@@ -38,7 +36,22 @@ class TrainConfig:
     test_size: float = 0.15
     early_stopping_patience: int = 8
     gradient_clip_norm: float = 1.0
-
+'''
+@dataclass
+class TrainConfig:
+    batch_size: int = 32
+    epochs: int = 100
+    learning_rate: float = 3e-4
+    weight_decay: float = 1e-3
+    embedding_dim: int = 64
+    num_heads: int = 4
+    num_layers: int = 3
+    dropout: float = 0.35
+    random_seed: int = 42
+    train_size_val: float = 0.15
+    test_size: float = 0.15
+    early_stopping_patience: int = 15
+    gradient_clip_norm: float = 1.0
 
 @dataclass
 class DataBundle:
@@ -101,7 +114,10 @@ class FTTransformerLike(nn.Module):
             nn.Linear(embedding_dim, embedding_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(embedding_dim, 1),
+            nn.Linear(embedding_dim, embedding_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(embedding_dim // 2, 1),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -265,9 +281,16 @@ def main() -> None:
 
     criterion = nn.BCEWithLogitsLoss(pos_weight=data.pos_weight.to(device))
     optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
+    model.parameters(),
+    lr=config.learning_rate,
+    weight_decay=config.weight_decay,
+    )
+
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="max",
+        factor=0.5,
+        patience=4,
     )
 
     best_state = None
@@ -291,6 +314,8 @@ def main() -> None:
             device=device,
             tune_threshold=True,
         )
+
+        scheduler.step(val_result.auc)
 
         improved = val_result.auc > best_val_auc
         if improved:
@@ -319,7 +344,17 @@ def main() -> None:
     if best_state is None:
         raise RuntimeError("Training finished without saving a best model state.")
 
+    # Load best model weights back into the model
     model.load_state_dict(best_state)
+
+    # Save best model weights for SHAP
+    artifacts_dir = PROJECT_ROOT / "artifacts"
+    artifacts_dir.mkdir(exist_ok=True)
+
+    best_model_path = artifacts_dir / "ft_transformer_best.pt"
+    torch.save(best_state, best_model_path)
+    print(f"Saved best model to: {best_model_path}")
+
     test_result = evaluate(
         model=model,
         loader=data.test_loader,
@@ -332,7 +367,16 @@ def main() -> None:
     print(f"Test AUC: {test_result.auc:.4f}")
     print(f"Test F1: {test_result.f1:.4f}")
     print(f"Threshold used: {best_threshold:.2f}")
-
+    
+    #Collect the raw probabilities and true labels from the test set
+    probs, targets = collect_predictions(model, data.test_loader, device)
+    
+    #Convert probabilities to strict 0 or 1 predictions using your best threshold
+    preds = (probs >= best_threshold).astype(int)
+    
+    #Generate and print the metrics
+    print("\nConfusion Matrix:\n", confusion_matrix(targets, preds))
+    print("\nClassification Report:\n", classification_report(targets, preds))
 
 if __name__ == "__main__":
     main()

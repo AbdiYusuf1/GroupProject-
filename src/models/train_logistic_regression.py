@@ -1,5 +1,14 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix, classification_report
+import sys
+from pathlib import Path
+
+# Allow Python to find the 'src' folder
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from src.data.preprocessing_revised import prepare_data
 
 # Load prepared data using  function
 
