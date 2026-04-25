@@ -5,6 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import shap
 import torch
 
@@ -39,26 +40,20 @@ def load_trained_model(model_path: str | Path, device: torch.device, config: Tra
 def get_feature_names(prepared, num_features):
     x_train_p = prepared.x_train_p
 
-    # Case 1: pandas DataFrame
     if hasattr(x_train_p, "columns"):
         return list(x_train_p.columns)
 
-    # Case 2: sklearn pipeline
     if hasattr(prepared, "preprocessor"):
         try:
             return list(prepared.preprocessor.get_feature_names_out())
         except:
             pass
 
-    # Fallback
     return [f"feature_{i}" for i in range(num_features)]
 
 
 def make_model_predict(model: FTTransformerLike, device: torch.device):
     def model_predict(X_numpy, batch_size: int = 256):
-        """
-        SHAP wrapper: numpy array -> numpy probabilities for positive class.
-        """
         X_numpy = np.asarray(X_numpy, dtype=np.float32)
         outputs = []
 
@@ -97,7 +92,6 @@ def main() -> None:
 
     print("Number of processed input features:", num_features)
 
-    # Change this path if your saved model is elsewhere.
     model_path = PROJECT_ROOT / "artifacts" / "ft_transformer_best.pt"
 
     if not model_path.exists():
@@ -115,7 +109,7 @@ def main() -> None:
 
     model_predict = make_model_predict(model, device)
 
-    # Keep these modest at first because KernelExplainer can be slow.
+    # Sampling
     background_size = min(50, len(x_train))
     explain_size = min(20, len(x_test))
 
@@ -126,12 +120,18 @@ def main() -> None:
     print(f"Background sample size: {background_size}")
     print(f"Rows to explain: {explain_size}")
 
+    # SHAP
     explainer = shap.KernelExplainer(model_predict, background)
     shap_values = explainer.shap_values(x_explain)
 
-    # Summary bar plot
+    # Handle binary classification
+    if isinstance(shap_values, list):
+        shap_values_to_use = shap_values[0]
+    else:
+        shap_values_to_use = shap_values
+
     shap.summary_plot(
-        shap_values,
+        shap_values_to_use,
         x_explain,
         feature_names=feature_names,
         plot_type="bar",
@@ -141,9 +141,8 @@ def main() -> None:
     plt.savefig("shap_summary_bar.png", dpi=300, bbox_inches="tight")
     plt.close()
 
-    # Summary beeswarm plot
     shap.summary_plot(
-        shap_values,
+        shap_values_to_use,
         x_explain,
         feature_names=feature_names,
         show=False,
@@ -152,9 +151,39 @@ def main() -> None:
     plt.savefig("shap_summary_beeswarm.png", dpi=300, bbox_inches="tight")
     plt.close()
 
-    print("Saved SHAP plots:")
+
+    shap_df = pd.DataFrame(
+        shap_values_to_use,
+        columns=feature_names
+    )
+
+    data_df = pd.DataFrame(
+        x_explain,
+        columns=feature_names
+    )
+
+    combined_df = pd.concat(
+        [data_df, shap_df.add_suffix("_shap")],
+        axis=1
+    )
+
+    combined_df.to_excel("shap_values_detailed.xlsx", index=False)
+
+    importance = np.abs(shap_values_to_use).mean(axis=0)
+
+    importance_df = pd.DataFrame({
+        "feature": feature_names,
+        "mean_abs_shap": importance
+    }).sort_values(by="mean_abs_shap", ascending=False)
+
+    importance_df.to_excel("shap_feature_importance.xlsx", index=False)
+
+
+    print("\nSaved outputs:")
     print("- shap_summary_bar.png")
     print("- shap_summary_beeswarm.png")
+    print("- shap_values_detailed.xlsx")
+    print("- shap_feature_importance.xlsx")
 
 
 if __name__ == "__main__":
