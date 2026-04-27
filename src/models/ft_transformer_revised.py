@@ -12,7 +12,6 @@ import torch.nn as nn
 from sklearn.metrics import f1_score, roc_auc_score, confusion_matrix, classification_report
 from torch.utils.data import DataLoader, TensorDataset
 
-# Allow this file to run either as part of the src package or directly.
 PROJECT_ROOT = Path(__file__).resolve().parents[2] if len(Path(__file__).resolve().parents) >= 3 else Path.cwd()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
@@ -169,6 +168,11 @@ def make_dataloaders(config: TrainConfig) -> DataBundle:
     negative_count = max(float(len(y_train) - y_train.sum()), 1.0)
     pos_weight = torch.tensor(negative_count / positive_count, dtype=torch.float32)
 
+    sample_applicant = torch.tensor(x_test[0], dtype=torch.float32).unsqueeze(0)
+    torch.save(sample_applicant, 'sample_applicant_data.pt')
+    print("Applicant data successfully saved")
+
+
     return DataBundle(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -279,6 +283,17 @@ def main() -> None:
         dropout=config.dropout,
     ).to(device)
 
+    model_config = {
+    'num_features': data.num_features,
+    'embedding_dim':config.embedding_dim,
+    'num_heads': config.num_heads,
+    'num_layers': config.num_layers,
+    'dropout': config.dropout,
+    }
+
+    torch.save(model_config, 'model_config.pt')
+    print("Model blueprint successfully saved!")
+
     criterion = nn.BCEWithLogitsLoss(pos_weight=data.pos_weight.to(device))
     optimizer = torch.optim.AdamW(
     model.parameters(),
@@ -325,6 +340,10 @@ def main() -> None:
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
+
+        # Save the trained weights to a file
+        torch.save(model.state_dict(), 'ft_transformer_weights.pth')
+        print("Model weights successfully saved!")
 
         print(
             f"Epoch {epoch:02d} | "
